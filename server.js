@@ -9,7 +9,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const upload = multer({ dest: "uploads/" });
 
+// Serve static files from /public
 app.use(express.static("public"));
+
+// ✅ Health check route for Coolify
+app.get("/", (req, res) => {
+  res.send("PDF Fixer is running");
+});
 
 app.post("/convert", upload.single("pdf"), (req, res) => {
   const inputPath = req.file.path;
