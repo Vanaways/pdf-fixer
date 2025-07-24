@@ -1,14 +1,44 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PDF Fixer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <h2>Upload your PDF to fix for Document Builder</h2>
-  <form action="/convert" method="post" enctype="multipart/form-data">
-    <input type="file" name="pdf" accept="application/pdf" required />
-    <button type="submit">Convert</button>
-  </form>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center px-4">
+  <div class="bg-white shadow-xl rounded-xl p-8 max-w-lg w-full">
+    <h1 class="text-2xl font-semibold mb-4 text-center text-gray-800">PDF Fixer</h1>
+    <p class="text-sm text-gray-500 text-center mb-6">Upload a PDF to convert it for Document Builder</p>
+
+    <form id="pdfForm" action="/convert" method="post" enctype="multipart/form-data" class="space-y-4">
+      <input type="file" name="pdf" accept="application/pdf" required
+        class="block w-full text-sm text-gray-700 border border-gray-300 rounded-md cursor-pointer focus:outline-none focus:ring focus:border-blue-400 p-2" />
+
+      <button type="submit"
+        class="w-full bg-blue-600 text-white py-2 rounded-md font-medium hover:bg-blue-700 transition">
+        Convert PDF
+      </button>
+    </form>
+
+    <div id="loading" class="hidden mt-6 flex items-center justify-center">
+      <svg class="animate-spin h-6 w-6 text-blue-600 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none"
+        viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+      </svg>
+      <span class="text-blue-600 text-sm">Converting PDF… Please wait</span>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('pdfForm');
+    const loading = document.getElementById('loading');
+
+    form.addEventListener('submit', () => {
+      loading.classList.remove('hidden');
+    });
+  </script>
 </body>
 </html>
