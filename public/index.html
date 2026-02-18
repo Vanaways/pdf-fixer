@@ -5,40 +5,310 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PDF Fixer</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .drop-active { border-color: #3b82f6 !important; background-color: #eff6ff !important; }
+    .progress-bar { transition: width 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-in { animation: fadeIn 0.25s ease-out; }
+  </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center px-4">
-  <div class="bg-white shadow-xl rounded-xl p-8 max-w-lg w-full">
-    <h1 class="text-2xl font-semibold mb-4 text-center text-gray-800">PDF Fixer</h1>
-    <p class="text-sm text-gray-500 text-center mb-6">Upload a PDF to convert it for Document Builder</p>
-
-    <form id="pdfForm" action="/convert" method="post" enctype="multipart/form-data" class="space-y-4">
-      <input type="file" name="pdf" accept="application/pdf" required
-        class="block w-full text-sm text-gray-700 border border-gray-300 rounded-md cursor-pointer focus:outline-none focus:ring focus:border-blue-400 p-2" />
-
-      <button type="submit"
-        class="w-full bg-blue-600 text-white py-2 rounded-md font-medium hover:bg-blue-700 transition">
-        Convert PDF
-      </button>
-    </form>
-
-    <div id="loading" class="hidden mt-6 flex items-center justify-center">
-      <svg class="animate-spin h-6 w-6 text-blue-600 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none"
-        viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor"
-          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-      </svg>
-      <span class="text-blue-600 text-sm">Converting PDF… Please wait</span>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center px-4 py-8">
+  <div class="bg-white shadow-lg rounded-2xl p-8 max-w-2xl w-full">
+    <div class="text-center mb-6">
+      <h1 class="text-2xl font-bold text-gray-900">PDF Fixer</h1>
+      <p class="text-sm text-gray-500 mt-1">Convert PDFs for Document Builder &mdash; drop one or many</p>
     </div>
+
+    <!-- Upload Area -->
+    <div id="uploadArea">
+      <!-- Drop zone -->
+      <div id="dropZone"
+        class="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-colors">
+        <svg class="mx-auto h-10 w-10 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+        </svg>
+        <p class="text-sm text-gray-600 font-medium">Drag & drop PDF files here</p>
+        <p class="text-xs text-gray-400 mt-1">or click to browse &mdash; up to 50 files, 100MB each</p>
+        <input id="fileInput" type="file" accept="application/pdf" multiple class="hidden" />
+      </div>
+
+      <!-- Selected files list -->
+      <div id="fileList" class="hidden mt-4 space-y-2"></div>
+
+      <!-- Action buttons -->
+      <div id="actions" class="hidden mt-4 flex gap-3">
+        <button id="convertBtn"
+          class="flex-1 bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
+          Convert PDFs
+        </button>
+        <button id="clearBtn"
+          class="px-4 py-2.5 rounded-lg font-medium border border-gray-300 text-gray-600 hover:bg-gray-50 transition">
+          Clear
+        </button>
+      </div>
+    </div>
+
+    <!-- Processing Area (hidden until conversion starts) -->
+    <div id="processingArea" class="hidden">
+      <div id="progressList" class="space-y-3"></div>
+
+      <div id="downloadArea" class="hidden mt-6 space-y-3 fade-in">
+        <button id="downloadAllBtn"
+          class="w-full bg-green-600 text-white py-2.5 rounded-lg font-medium hover:bg-green-700 transition">
+          Download All
+        </button>
+        <button id="newBatchBtn"
+          class="w-full py-2.5 rounded-lg font-medium border border-gray-300 text-gray-600 hover:bg-gray-50 transition">
+          Convert More Files
+        </button>
+      </div>
+    </div>
+
+    <!-- Error banner -->
+    <div id="errorBanner" class="hidden mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"></div>
   </div>
 
   <script>
-    const form = document.getElementById('pdfForm');
-    const loading = document.getElementById('loading');
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileList = document.getElementById('fileList');
+    const actions = document.getElementById('actions');
+    const convertBtn = document.getElementById('convertBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const uploadArea = document.getElementById('uploadArea');
+    const processingArea = document.getElementById('processingArea');
+    const progressList = document.getElementById('progressList');
+    const downloadArea = document.getElementById('downloadArea');
+    const downloadAllBtn = document.getElementById('downloadAllBtn');
+    const newBatchBtn = document.getElementById('newBatchBtn');
+    const errorBanner = document.getElementById('errorBanner');
 
-    form.addEventListener('submit', () => {
-      loading.classList.remove('hidden');
+    let selectedFiles = [];
+    let currentJobId = null;
+
+    // --- Drop zone interactions ---
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drop-active');
     });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('drop-active');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drop-active');
+      const files = [...e.dataTransfer.files].filter(f => f.type === 'application/pdf');
+      if (files.length === 0) {
+        showError('Please drop PDF files only.');
+        return;
+      }
+      addFiles(files);
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length) {
+        addFiles([...fileInput.files]);
+        fileInput.value = '';
+      }
+    });
+
+    // --- File management ---
+    function addFiles(files) {
+      hideError();
+      for (const f of files) {
+        // Avoid duplicates by name+size
+        if (!selectedFiles.some(s => s.name === f.name && s.size === f.size)) {
+          selectedFiles.push(f);
+        }
+      }
+      renderFileList();
+    }
+
+    function removeFile(index) {
+      selectedFiles.splice(index, 1);
+      renderFileList();
+    }
+
+    function renderFileList() {
+      if (selectedFiles.length === 0) {
+        fileList.classList.add('hidden');
+        actions.classList.add('hidden');
+        return;
+      }
+
+      fileList.classList.remove('hidden');
+      actions.classList.remove('hidden');
+      convertBtn.textContent = selectedFiles.length === 1
+        ? 'Convert PDF'
+        : `Convert ${selectedFiles.length} PDFs`;
+
+      fileList.innerHTML = selectedFiles.map((f, i) => `
+        <div class="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 fade-in">
+          <div class="flex items-center gap-2 min-w-0">
+            <svg class="h-4 w-4 text-red-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"/>
+            </svg>
+            <span class="text-sm text-gray-700 truncate">${escapeHtml(f.name)}</span>
+            <span class="text-xs text-gray-400 flex-shrink-0">${formatSize(f.size)}</span>
+          </div>
+          <button onclick="removeFile(${i})" class="text-gray-400 hover:text-red-500 transition ml-2 flex-shrink-0">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      `).join('');
+    }
+
+    clearBtn.addEventListener('click', () => {
+      selectedFiles = [];
+      renderFileList();
+    });
+
+    // --- Conversion ---
+    convertBtn.addEventListener('click', async () => {
+      if (selectedFiles.length === 0) return;
+      hideError();
+
+      const formData = new FormData();
+      for (const f of selectedFiles) {
+        formData.append('pdf', f);
+      }
+
+      // Switch to processing view
+      uploadArea.classList.add('hidden');
+      processingArea.classList.remove('hidden');
+      downloadArea.classList.add('hidden');
+
+      // Build initial progress UI
+      progressList.innerHTML = selectedFiles.map((f, i) => `
+        <div id="file-${i}" class="bg-gray-50 rounded-lg px-4 py-3 fade-in">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-sm font-medium text-gray-700 truncate mr-2">${escapeHtml(f.name)}</span>
+            <span id="status-${i}" class="text-xs text-gray-400">Uploading...</span>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-2">
+            <div id="bar-${i}" class="progress-bar bg-blue-500 h-2 rounded-full" style="width: 0%"></div>
+          </div>
+        </div>
+      `).join('');
+
+      try {
+        // Upload files
+        const resp = await fetch('/convert', { method: 'POST', body: formData });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({ error: 'Upload failed' }));
+          throw new Error(err.error || 'Upload failed');
+        }
+
+        const { jobId } = await resp.json();
+        currentJobId = jobId;
+
+        // Connect to SSE for progress
+        listenToProgress(jobId);
+      } catch (err) {
+        showError(err.message);
+        resetToUpload();
+      }
+    });
+
+    function listenToProgress(jobId) {
+      const source = new EventSource(`/progress/${jobId}`);
+
+      source.onmessage = (event) => {
+        const files = JSON.parse(event.data);
+        files.forEach((f, i) => {
+          const bar = document.getElementById(`bar-${i}`);
+          const status = document.getElementById(`status-${i}`);
+          const row = document.getElementById(`file-${i}`);
+          if (!bar || !status) return;
+
+          bar.style.width = `${f.progress}%`;
+
+          if (f.status === 'queued') {
+            status.textContent = 'Queued';
+            status.className = 'text-xs text-gray-400';
+          } else if (f.status === 'processing') {
+            status.textContent = `Processing ${f.progress}%`;
+            status.className = 'text-xs text-blue-600';
+            bar.className = 'progress-bar bg-blue-500 h-2 rounded-full';
+          } else if (f.status === 'done') {
+            status.innerHTML = `<a href="/download/${jobId}/${i}" class="text-green-600 hover:underline">Download</a>`;
+            bar.className = 'progress-bar bg-green-500 h-2 rounded-full';
+            bar.style.width = '100%';
+          } else if (f.status === 'error') {
+            status.textContent = f.error || 'Failed';
+            status.className = 'text-xs text-red-500';
+            bar.className = 'progress-bar bg-red-400 h-2 rounded-full';
+            bar.style.width = '100%';
+            row.classList.add('bg-red-50');
+            row.classList.remove('bg-gray-50');
+          }
+        });
+      };
+
+      source.addEventListener('complete', () => {
+        source.close();
+        downloadArea.classList.remove('hidden');
+      });
+
+      source.onerror = () => {
+        source.close();
+        // Check if all done already (connection may close after complete)
+        downloadArea.classList.remove('hidden');
+      };
+    }
+
+    // --- Downloads ---
+    downloadAllBtn.addEventListener('click', () => {
+      if (currentJobId) {
+        window.location.href = `/download-all/${currentJobId}`;
+      }
+    });
+
+    newBatchBtn.addEventListener('click', () => {
+      // Cleanup old job
+      if (currentJobId) {
+        fetch(`/job/${currentJobId}`, { method: 'DELETE' }).catch(() => {});
+      }
+      currentJobId = null;
+      selectedFiles = [];
+      processingArea.classList.add('hidden');
+      uploadArea.classList.remove('hidden');
+      renderFileList();
+    });
+
+    // --- Helpers ---
+    function resetToUpload() {
+      processingArea.classList.add('hidden');
+      uploadArea.classList.remove('hidden');
+    }
+
+    function showError(msg) {
+      errorBanner.textContent = msg;
+      errorBanner.classList.remove('hidden');
+    }
+
+    function hideError() {
+      errorBanner.classList.add('hidden');
+    }
+
+    function formatSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
   </script>
 </body>
 </html>

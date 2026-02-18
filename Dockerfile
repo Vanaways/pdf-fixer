@@ -1,7 +1,7 @@
 FROM node:18-bullseye
 
 # Install Ghostscript
-RUN apt-get update && apt-get install -y ghostscript
+RUN apt-get update && apt-get install -y ghostscript zip && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
