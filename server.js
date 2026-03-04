@@ -19,6 +19,7 @@ app.get("/", (req, res) => {
 
 app.post("/convert", upload.single("pdf"), (req, res) => {
   const inputPath = req.file.path;
+  const originalName = path.basename(req.file.originalname || "converted.pdf");
   const outputPath = path.join("outputs", `${req.file.filename}_converted.pdf`);
 
   const cmd = `gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.3 -dPDFSETTINGS=/printer -dPDFFitPage -dFIXEDMEDIA -sPAPERSIZE=a4 -dNOPAUSE -dQUIET -dBATCH -sOutputFile=${outputPath} ${inputPath}`;
@@ -28,7 +29,7 @@ app.post("/convert", upload.single("pdf"), (req, res) => {
       console.error(err);
       return res.status(500).send("Error processing PDF");
     }
-    res.download(outputPath, "converted.pdf", () => {
+    res.download(outputPath, originalName, () => {
       fs.unlinkSync(inputPath);
       fs.unlinkSync(outputPath);
     });
