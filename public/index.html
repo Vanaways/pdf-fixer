@@ -152,8 +152,8 @@
         const disposition = response.headers.get('Content-Disposition');
         let downloadName = fileInput.files[0].name;
         if (disposition) {
-          const match = disposition.match(/filename="?(.+?)"?$/);
-          if (match) downloadName = match[1];
+          const match = disposition.match(/filename[^;=\n]*=((['"])(.+?)\2|([^;\n]*))/);
+          if (match) downloadName = (match[3] || match[4] || downloadName).trim();
         }
 
         const blob = await response.blob();
