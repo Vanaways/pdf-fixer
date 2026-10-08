@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax check
+        run: node --check server.js
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npm test
+
+      - name: Smoke test
+        run: |
+          PORT=3000 node server.js &
+          for i in $(seq 1 20); do
+            curl -fsS http://127.0.0.1:3000/healthz > /dev/null && exit 0
+            sleep 1
+          done
+          echo "Server did not respond on /healthz" >&2
+          exit 1
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: pdf-fixer:ci
+
+      - name: Check Ghostscript and app start in the image
+        run: |
+          docker run --rm --entrypoint gs pdf-fixer:ci --version
+          docker run -d --name pdf-fixer -p 3000:3000 pdf-fixer:ci
+          for i in $(seq 1 20); do
+            curl -fsS http://127.0.0.1:3000/healthz > /dev/null && exit 0
+            sleep 1
+          done
+          docker logs pdf-fixer
+          exit 1
