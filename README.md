@@ -51,6 +51,34 @@ Returns the converted PDF with the original file name preserved.
 curl -X POST -F "pdf=@myfile.pdf" http://localhost:3000/convert --output myfile.pdf
 ```
 
+Error responses:
+
+| Status | Meaning |
+| ------ | ------- |
+| 400 | No file, not a PDF, or a malformed upload |
+| 413 | File is larger than `MAX_UPLOAD_MB` |
+| 429 | Rate limit exceeded (`RATE_LIMIT_MAX` per `RATE_LIMIT_WINDOW_MS`, per IP) |
+| 500 | Ghostscript failed or timed out |
+| 503 | `MAX_CONCURRENT_JOBS` conversions already running; retry shortly |
+
+### `GET /healthz`
+
+Returns `200 ok`. Use this as the health check path.
+
+## Configuration
+
+All environment variables are optional; see [`.env.example`](.env.example) for the defaults.
+
+| Variable | Default | Purpose |
+| -------- | ------- | ------- |
+| `PORT` | `3000` | HTTP port |
+| `MAX_UPLOAD_MB` | `50` | Maximum upload size |
+| `GS_TIMEOUT_MS` | `120000` | Ghostscript timeout per conversion |
+| `MAX_CONCURRENT_JOBS` | `2` | Concurrent Ghostscript jobs |
+| `RATE_LIMIT_WINDOW_MS` | `900000` | Rate limit window for `POST /convert` |
+| `RATE_LIMIT_MAX` | `60` | Conversions per IP per window |
+| `TRUST_PROXY` | `1` | Express `trust proxy` (proxy hops in front of the app) |
+
 ## Tech Stack
 
 - **Node.js** + **Express** — web server
