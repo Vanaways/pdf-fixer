@@ -30,6 +30,13 @@ npm start
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+### Lint and test
+
+```bash
+npm run lint   # ESLint (eslint.config.js)
+npm test       # node:test, uses a stub gs so Ghostscript is not needed
+```
+
 ### Run with Docker
 
 ```bash
