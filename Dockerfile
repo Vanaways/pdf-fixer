@@ -4,7 +4,7 @@ ENV NODE_ENV=production
 
 # Install Ghostscript
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ghostscript \
+  && apt-get install -y --no-install-recommends ghostscript curl \
   && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
