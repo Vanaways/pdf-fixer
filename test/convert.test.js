@@ -2,17 +2,21 @@
 const { test, before, after } = require("node:test");
 const assert = require("node:assert");
 const fs = require("fs");
+const http = require("http");
 const os = require("os");
 const path = require("path");
 
 const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), "pdf-fixer-gs-"));
 fs.writeFileSync(
   path.join(stubDir, "gs"),
-  '#!/bin/sh\nfor a in "$@"; do case "$a" in -sOutputFile=*) out="${a#-sOutputFile=}";; esac; last="$a"; done\ncp "$last" "$out"\n',
+  // Inputs containing SLOW make the stub take a second, to hold a job slot
+  '#!/bin/sh\nfor a in "$@"; do case "$a" in -sOutputFile=*) out="${a#-sOutputFile=}";; esac; last="$a"; done\n' +
+    'if grep -q SLOW "$last"; then sleep 1; fi\ncp "$last" "$out"\n',
   { mode: 0o755 }
 );
 process.env.PATH = `${stubDir}${path.delimiter}${process.env.PATH}`;
 process.env.MAX_UPLOAD_MB = "1";
+process.env.MAX_CONCURRENT_JOBS = "1";
 
 const app = require("../server");
 
@@ -76,4 +80,36 @@ test("POST /convert returns the converted PDF with the original name", async () 
   assert.strictEqual(res.status, 200);
   assert.match(res.headers.get("content-disposition"), /My Invoice\.pdf/);
   assert.strictEqual(await res.text(), pdf);
+});
+
+test("POST /convert is not blocked by a stalled upload", async () => {
+  // Send the start of a multipart body and never finish it
+  const boundary = "stalled-upload";
+  const req = http.request(`${baseUrl}/convert`, {
+    method: "POST",
+    headers: { "Content-Type": `multipart/form-data; boundary=${boundary}` },
+  });
+  req.on("error", () => {});
+  req.write(
+    `--${boundary}\r\nContent-Disposition: form-data; name="pdf"; filename="slow.pdf"\r\n` +
+      "Content-Type: application/pdf\r\n\r\n%PDF-1.4\n"
+  );
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const res = await postFile("%PDF-1.4\n%%EOF\n");
+    assert.strictEqual(res.status, 200);
+  } finally {
+    req.destroy();
+  }
+});
+
+test("POST /convert returns 503 while Ghostscript is at capacity", async () => {
+  const slow = postFile("%PDF-1.4\nSLOW\n%%EOF\n");
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  const busy = await postFile("%PDF-1.4\n%%EOF\n");
+  assert.strictEqual(busy.status, 503);
+  assert.strictEqual(busy.headers.get("retry-after"), "10");
+  assert.strictEqual((await slow).status, 200);
+  const after = await postFile("%PDF-1.4\n%%EOF\n");
+  assert.strictEqual(after.status, 200);
 });

@@ -103,35 +103,9 @@ const runGhostscript = (inputPath, outputPath) =>
 const removeFiles = (...files) =>
   Promise.all(files.filter(Boolean).map((file) => fs.promises.rm(file, { force: true })));
 
+// Ghostscript jobs currently running. Only the gs step counts, so slow or
+// stalled uploads cannot occupy a slot and lock other users out.
 let activeJobs = 0;
-
-// Reject before accepting the upload when Ghostscript is already at capacity.
-// The slot is freed when the response closes, but never while gs is still
-// running, so aborting the request cannot be used to bypass the cap.
-const jobSlot = (req, res, next) => {
-  if (activeJobs >= MAX_CONCURRENT_JOBS) {
-    res.set("Retry-After", "10");
-    return res.status(503).send("Server busy, please try again shortly");
-  }
-  activeJobs++;
-  const slot = {
-    running: false,
-    closed: false,
-    released: false,
-    release() {
-      if (!this.released) {
-        this.released = true;
-        activeJobs--;
-      }
-    },
-  };
-  res.on("close", () => {
-    slot.closed = true;
-    if (!slot.running) slot.release();
-  });
-  req.jobSlot = slot;
-  next();
-};
 
 // Serve static files from /public
 app.use(express.static("public"));
@@ -141,7 +115,7 @@ app.get("/healthz", (req, res) => {
   res.send("ok");
 });
 
-app.post("/convert", convertLimiter, jobSlot, upload.single("pdf"), async (req, res) => {
+app.post("/convert", convertLimiter, upload.single("pdf"), async (req, res) => {
   if (!req.file) {
     return res.status(400).send("Please upload a PDF file in the 'pdf' field");
   }
@@ -155,15 +129,29 @@ app.post("/convert", convertLimiter, jobSlot, upload.single("pdf"), async (req, 
       await removeFiles(inputPath);
       return res.status(400).send("Uploaded file is not a PDF");
     }
-    req.jobSlot.running = true;
+  } catch (err) {
+    console.error(err);
+    await removeFiles(inputPath);
+    return res.status(500).send("Error processing PDF");
+  }
+
+  if (activeJobs >= MAX_CONCURRENT_JOBS) {
+    await removeFiles(inputPath);
+    res.set("Retry-After", "10");
+    return res.status(503).send("Server busy, please try again shortly");
+  }
+
+  // The slot is held until gs exits, even if the client disconnects, so
+  // aborting the request cannot be used to bypass the cap.
+  activeJobs++;
+  try {
     await runGhostscript(inputPath, outputPath);
   } catch (err) {
     console.error(err);
     await removeFiles(inputPath, outputPath);
     return res.status(500).send("Error processing PDF");
   } finally {
-    req.jobSlot.running = false;
-    if (req.jobSlot.closed) req.jobSlot.release();
+    activeJobs--;
   }
 
   res.download(outputPath, originalName, (err) => {
