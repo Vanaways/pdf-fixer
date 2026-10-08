@@ -1,4 +1,4 @@
-FROM node:18-bullseye
+FROM node:18-bookworm
 
 # Install Ghostscript
 RUN apt-get update && apt-get install -y ghostscript
