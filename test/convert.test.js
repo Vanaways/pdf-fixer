@@ -51,7 +51,19 @@ test("GET / serves the upload page without X-Powered-By", async () => {
   assert.strictEqual(res.status, 200);
   assert.match(await res.text(), /PDF Fixer/);
   assert.strictEqual(res.headers.get("x-powered-by"), null);
-  assert.ok(res.headers.get("content-security-policy"));
+  const csp = res.headers.get("content-security-policy");
+  assert.match(csp, /script-src 'self'(;|$)/);
+  assert.doesNotMatch(csp, /cdn\.tailwindcss\.com/);
+});
+
+test("GET / loads the prebuilt stylesheet and script from this origin", async () => {
+  const html = await (await fetch(`${baseUrl}/`)).text();
+  assert.doesNotMatch(html, /<script>/);
+  assert.doesNotMatch(html, /(src|href)="https?:/);
+  for (const asset of ["styles.css", "app.js"]) {
+    const res = await fetch(`${baseUrl}/${asset}`);
+    assert.strictEqual(res.status, 200, asset);
+  }
 });
 
 test("POST /convert without a file returns 400", async () => {

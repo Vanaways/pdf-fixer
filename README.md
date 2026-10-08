@@ -37,6 +37,14 @@ npm run lint   # ESLint (eslint.config.js)
 npm test       # node:test, uses a stub gs so Ghostscript is not needed
 ```
 
+### Styles
+
+The page uses Tailwind CSS 3, prebuilt into `public/styles.css` (committed, so the Docker image needs no build step). After changing classes in `public/index.html` or `public/app.js`, rebuild and commit it:
+
+```bash
+npm run build:css
+```
+
 ### Run with Docker
 
 ```bash
@@ -91,7 +99,7 @@ All environment variables are optional; see [`.env.example`](.env.example) for t
 - **Node.js** + **Express** — web server
 - **Multer** — file upload handling
 - **Ghostscript** — PDF conversion
-- **Tailwind CSS** (CDN) — UI styling
+- **Tailwind CSS** (prebuilt, no CDN) — UI styling
 
 ## License
 

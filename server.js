@@ -38,16 +38,8 @@ const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", parseTrustProxy(process.env.TRUST_PROXY));
 
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      directives: {
-        // index.html uses an inline script and the Tailwind Play CDN
-        "script-src": ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"],
-      },
-    },
-  })
-);
+// Default CSP: the page only loads its own app.js and prebuilt styles.css
+app.use(helmet());
 
 const upload = multer({
   dest: UPLOAD_DIR,
