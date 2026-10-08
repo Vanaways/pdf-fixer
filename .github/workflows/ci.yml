@@ -25,17 +25,20 @@ jobs:
       - name: Syntax check
         run: node --check server.js
 
+      - name: Lint
+        run: npm run lint
+
       - name: Tests
-        run: npm test --if-present
+        run: npm test
 
       - name: Smoke test
         run: |
           PORT=3000 node server.js &
           for i in $(seq 1 20); do
-            curl -fsS http://127.0.0.1:3000/ > /dev/null && exit 0
+            curl -fsS http://127.0.0.1:3000/healthz > /dev/null && exit 0
             sleep 1
           done
-          echo "Server did not respond on /" >&2
+          echo "Server did not respond on /healthz" >&2
           exit 1
 
   docker:
@@ -58,7 +61,7 @@ jobs:
           docker run --rm --entrypoint gs pdf-fixer:ci --version
           docker run -d --name pdf-fixer -p 3000:3000 pdf-fixer:ci
           for i in $(seq 1 20); do
-            curl -fsS http://127.0.0.1:3000/ > /dev/null && exit 0
+            curl -fsS http://127.0.0.1:3000/healthz > /dev/null && exit 0
             sleep 1
           done
           docker logs pdf-fixer

@@ -62,12 +62,12 @@ The image is based on `node:24-bookworm-slim` with Ghostscript installed, and ru
 Deployed on **Coolify** from the `Dockerfile` on the `main` branch (https://pdf-fixer.vanaways.co.uk). Merging to `main` and redeploying in Coolify ships a change.
 
 - Port: `3000` (override with `PORT`)
-- Health check: `GET /` returns 200 (the Dockerfile `HEALTHCHECK` uses it)
+- Health check: `GET /healthz` (the Dockerfile `HEALTHCHECK` uses it; set the same path in Coolify)
 - No secrets are required.
 
 ## Development
 
-CI (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `main`: `npm ci`, a syntax check, `npm test` (when present), a smoke test of `GET /`, and a Docker build that checks Ghostscript and app start inside the image. Dependabot opens grouped weekly updates for npm, GitHub Actions and the Docker base image.
+CI (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `main`: `npm ci`, a syntax check, `npm run lint`, `npm test`, a smoke test of `GET /healthz`, and a Docker build that checks Ghostscript and app start inside the image. Dependabot opens grouped weekly updates for npm, GitHub Actions and the Docker base image.
 
 ## API
 
