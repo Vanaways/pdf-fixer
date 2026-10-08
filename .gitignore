@@ -1,3 +1,13 @@
 node_modules/
 uploads/
 outputs/
+
+# Local env files
+.env
+.env.*
+!.env.example
+
+# Logs and OS junk
+*.log
+npm-debug.log*
+.DS_Store
