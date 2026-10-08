@@ -1,0 +1,13 @@
+.git
+.github
+node_modules
+uploads
+outputs
+test
+.env
+.env.*
+*.log
+.DS_Store
+Dockerfile
+.dockerignore
+README.md
